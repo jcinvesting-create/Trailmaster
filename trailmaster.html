@@ -1,0 +1,1142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Trailmaster">
+<meta name="theme-color" content="#111814">
+<meta name="description" content="Hunting scouting and land management app with satellite maps, GPS tracking, and lunar forecasts">
+<link rel="manifest" href="manifest.json">
+<!-- Apple touch icon (inline SVG rendered as data URI) -->
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23111814'/%3E%3Crect width='180' height='180' rx='40' fill='url(%23g)'/%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%232a3824'/%3E%3Cstop offset='1' stop-color='%230a0e06'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ctext x='90' y='115' font-size='90' text-anchor='middle'%3E🦌%3C/text%3E%3C/svg%3E">
+<title>Trailmaster</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#111814;--bg2:#1a2018;--bg3:#222d1e;--bg4:#2a3824;
+  --border:#2e3d28;--border2:#3d5030;
+  --orange:#f07820;--orange2:#ff9040;
+  --green:#4caf28;--green2:#6dd640;
+  --blue:#38b8e8;
+  --text:#f0ede4;--text2:#b8c8a8;--muted:#6a7d58;
+  --nav-h:62px;--top-h:52px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;overflow:hidden;}
+body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;display:flex;flex-direction:column;height:100dvh;}
+
+/* ── TOP BAR ── */
+#topbar{
+  position:absolute;top:0;left:0;right:0;z-index:800;
+  height:var(--top-h);
+  background:linear-gradient(180deg,rgba(10,14,8,.95) 0%,rgba(10,14,8,.7) 100%);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 12px;
+  border-bottom:1px solid rgba(255,255,255,.06);
+  backdrop-filter:blur(8px);
+}
+.logo-wrap{display:flex;align-items:center;gap:8px;}
+.logo-mark{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,var(--orange),#c05010);display:flex;align-items:center;justify-content:center;font-size:18px;}
+.logo-txt{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:700;color:var(--text);letter-spacing:.5px;}
+.logo-sub{font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-top:-2px;}
+#gps-badge{display:flex;align-items:center;gap:6px;background:rgba(0,0,0,.5);border:1px solid var(--border2);border-radius:20px;padding:5px 10px;cursor:pointer;font-size:11px;font-weight:600;color:var(--text2);}
+.gpsdot{width:8px;height:8px;border-radius:50%;background:#555;flex-shrink:0;}
+.gpsdot.seek{background:var(--orange);animation:pulse .7s infinite;}
+.gpsdot.fix{background:var(--green);box-shadow:0 0 7px var(--green);animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ── MAP (full screen behind everything) ── */
+#map{position:absolute;inset:0;z-index:1;}
+
+/* ── FLOATING CONTROLS ── */
+#fc-left{position:absolute;left:10px;top:calc(var(--top-h) + 10px);z-index:700;display:flex;flex-direction:column;gap:8px;}
+#fc-right{position:absolute;right:10px;top:calc(var(--top-h) + 10px);z-index:700;display:flex;flex-direction:column;gap:8px;}
+.fab{width:42px;height:42px;border-radius:10px;background:rgba(10,14,8,.88);border:1px solid var(--border2);color:var(--text);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);transition:border-color .2s,background .2s;font-family:inherit;}
+.fab:hover,.fab.on{border-color:var(--orange);background:rgba(240,120,32,.15);color:var(--orange);}
+.fab.green{border-color:var(--green);background:rgba(76,175,40,.15);color:var(--green);}
+.fab-label{font-size:8px;font-weight:700;letter-spacing:.5px;margin-top:1px;color:var(--muted);text-transform:uppercase;}
+.fabs-col{display:flex;flex-direction:column;align-items:center;gap:2px;}
+
+/* layer toggle */
+#layer-toggle{position:absolute;right:10px;bottom:calc(var(--nav-h) + 14px);z-index:700;display:flex;gap:6px;}
+.layer-btn{background:rgba(10,14,8,.88);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;color:var(--text2);backdrop-filter:blur(8px);font-family:inherit;transition:all .15s;}
+.layer-btn.on{background:rgba(240,120,32,.2);border-color:var(--orange);color:var(--orange);}
+
+/* locate FAB */
+#locate-fab{position:absolute;right:10px;bottom:calc(var(--nav-h) + 60px);z-index:700;width:46px;height:46px;border-radius:50%;background:rgba(10,14,8,.92);border:2px solid var(--green);color:var(--green);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);}
+
+/* ── PLACE MARKER TRAY ── */
+#place-tray{
+  position:absolute;bottom:calc(var(--nav-h) + 8px);left:0;right:0;z-index:700;
+  display:none;padding:0 10px;
+}
+#place-tray.on{display:block;}
+.tray-inner{background:rgba(10,14,8,.95);border:1px solid var(--border2);border-radius:14px;padding:12px;backdrop-filter:blur(12px);}
+.tray-title{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
+.type-row{display:flex;gap:8px;}
+.type-card{flex:1;background:var(--bg3);border:2px solid var(--border);border-radius:10px;padding:10px 6px;text-align:center;cursor:pointer;transition:all .15s;}
+.type-card.on.stand{border-color:var(--green);background:rgba(76,175,40,.12);}
+.type-card.on.feeder{border-color:var(--orange);background:rgba(240,120,32,.12);}
+.type-card.on.crossing{border-color:var(--blue);background:rgba(56,184,232,.12);}
+.type-card.on.road{border-color:#b07040;background:rgba(176,112,64,.12);}
+.type-icon{font-size:24px;line-height:1;}
+.type-name{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin-top:4px;color:var(--text2);}
+.tray-hint{font-size:11px;color:var(--muted);text-align:center;margin-top:8px;}
+
+/* ── BOTTOM NAV ── */
+#bottom-nav{
+  position:absolute;bottom:0;left:0;right:0;z-index:800;
+  height:var(--nav-h);
+  background:rgba(8,12,6,.97);
+  border-top:1px solid var(--border2);
+  display:flex;align-items:stretch;
+  backdrop-filter:blur(12px);
+}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;border:none;background:transparent;color:var(--muted);font-family:inherit;transition:color .2s;padding-bottom:4px;}
+.nav-item.on{color:var(--orange);}
+.nav-item .ni{font-size:20px;}
+.nav-item .nl{font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;}
+.nav-divider{width:1px;background:var(--border);margin:10px 0;flex-shrink:0;}
+
+/* ── SIDE PANELS (slide up from bottom) ── */
+.side-panel{
+  position:absolute;left:0;right:0;bottom:var(--nav-h);z-index:750;
+  background:var(--bg);
+  max-height:calc(100dvh - var(--top-h) - var(--nav-h));
+  overflow-y:auto;
+  display:none;
+  border-top:2px solid var(--border2);
+}
+.side-panel.on{display:block;}
+.panel-hdr{background:var(--bg2);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:5;border-bottom:1px solid var(--border);}
+.panel-title{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;letter-spacing:.5px;color:var(--text);}
+.panel-body{padding:14px 16px;}
+
+/* WEATHER / LOG / LUNAR shared components */
+.sec-label{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;}
+.add-btn{background:transparent;border:1px solid var(--orange);border-radius:8px;color:var(--orange);padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;letter-spacing:.5px;}
+
+/* obs form */
+#obs-form{display:none;}
+#obs-form.on{display:block;}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:10px;}
+.form-field{display:flex;flex-direction:column;gap:3px;}
+.form-field.full{grid-column:1/-1;}
+.fl{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);}
+.fi{background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:7px 10px;font-size:13px;font-family:inherit;width:100%;outline:none;}
+.fi:focus{border-color:var(--orange);}
+.btn-row{display:flex;gap:8px;}
+.btn-p{flex:1;padding:9px;background:rgba(240,120,32,.15);border:1px solid var(--orange);border-radius:7px;color:var(--orange);cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;}
+.btn-s{flex:1;padding:9px;background:var(--bg2);border:1px solid var(--border);border-radius:7px;color:var(--muted);cursor:pointer;font-family:inherit;font-size:13px;}
+.obs-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:11px 13px;margin-bottom:8px;display:flex;gap:11px;}
+.obs-ico{font-size:26px;flex-shrink:0;line-height:1;}
+.og{font-weight:700;color:var(--orange2);font-size:14px;}
+.ocount{margin-left:7px;background:rgba(76,175,40,.2);border:1px solid var(--green);padding:0 7px;border-radius:10px;font-size:11px;color:var(--green);font-weight:600;}
+.ometa{font-size:11px;color:var(--muted);margin-top:2px;}
+.onote{font-size:12px;color:var(--text2);margin-top:3px;font-style:italic;}
+.ogps{font-size:10px;color:var(--green);margin-top:3px;cursor:pointer;font-weight:600;}
+
+/* LUNAR */
+.moon-hero{background:linear-gradient(160deg,#080e05,#141c0e);border:1px solid var(--border2);border-radius:14px;padding:20px;margin-bottom:14px;text-align:center;}
+.moon-big{font-size:70px;line-height:1;margin-bottom:6px;filter:drop-shadow(0 0 16px rgba(255,220,100,.35));}
+.moon-phase{font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:700;color:#ffe080;letter-spacing:.5px;}
+.moon-meta{font-size:12px;color:var(--muted);margin-top:3px;}
+.activity-bar{display:flex;align-items:center;gap:10px;margin-top:12px;background:var(--bg);border-radius:8px;padding:8px 12px;}
+.activity-label{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);flex-shrink:0;}
+.activity-track{flex:1;height:8px;background:var(--bg2);border-radius:4px;overflow:hidden;}
+.activity-fill{height:100%;border-radius:4px;transition:width .6s;}
+.activity-score{font-size:14px;font-weight:700;flex-shrink:0;}
+.forecast-row{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:14px;}
+.fday{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:7px 3px;text-align:center;cursor:pointer;transition:all .15s;}
+.fday:hover,.fday.sel{border-color:var(--orange);}
+.fday.sel{background:rgba(240,120,32,.1);}
+.fdn{font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);}
+.fdm{font-size:18px;margin:3px 0;}
+.fds{font-size:11px;font-weight:700;}
+.fdb{height:3px;border-radius:2px;margin-top:4px;}
+.hour-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px;}
+.hcell{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:7px 4px;text-align:center;}
+.hcell.peak{border-color:#ffe080;background:rgba(255,224,128,.07);}
+.ht{font-size:9px;color:var(--muted);font-weight:600;}
+.hico{font-size:16px;margin:3px 0;}
+.hbar{height:3px;border-radius:2px;margin-top:3px;}
+.ai-card{background:linear-gradient(135deg,#080e05,#111a09);border:1px solid var(--border2);border-radius:12px;padding:14px;}
+.ai-hdr{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--orange);margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.ai-body{font-size:13px;color:var(--text2);line-height:1.65;}
+.ai-dots{display:flex;gap:4px;align-items:center;}
+.ald{width:5px;height:5px;border-radius:50%;background:var(--orange);animation:pulse .8s infinite;}
+.ald:nth-child(2){animation-delay:.2s;}
+.ald:nth-child(3){animation-delay:.4s;}
+
+/* SHARE PANEL */
+.share-code-box{font-family:monospace;font-size:26px;letter-spacing:8px;color:var(--orange);text-align:center;background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:14px;margin:8px 0;}
+.share-hint{font-size:11px;color:var(--muted);text-align:center;}
+hr.divider{border:none;border-top:1px solid var(--border);margin:16px 0;}
+
+/* TOAST */
+#toast{position:fixed;bottom:calc(var(--nav-h) + 12px);left:50%;transform:translateX(-50%);background:rgba(8,12,6,.97);border:1px solid var(--green);color:var(--green);padding:8px 20px;border-radius:20px;font-size:12px;font-weight:600;z-index:1500;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;letter-spacing:.3px;}
+#toast.on{opacity:1;}
+
+/* MODALS */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:2000;display:none;align-items:flex-end;justify-content:center;padding-bottom:0;}
+.modal-bg.on{display:flex;}
+.modal{background:var(--bg2);border-top:2px solid var(--border2);border-radius:18px 18px 0 0;padding:20px;width:100%;max-width:480px;max-height:85vh;overflow-y:auto;}
+.modal-pill{width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 16px;}
+.modal-title{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:700;color:var(--text);margin-bottom:14px;letter-spacing:.3px;}
+
+/* Leaflet custom */
+.leaflet-control-zoom{border:1px solid rgba(255,255,255,.1)!important;border-radius:8px!important;overflow:hidden;}
+.leaflet-control-zoom a{background:rgba(8,12,6,.9)!important;color:var(--text)!important;border-bottom:1px solid rgba(255,255,255,.08)!important;font-size:16px!important;}
+.leaflet-popup-content-wrapper{background:rgba(18,24,14,.97)!important;border:1px solid var(--border2)!important;color:var(--text)!important;border-radius:12px!important;box-shadow:0 8px 32px rgba(0,0,0,.7)!important;}
+.leaflet-popup-tip{background:rgba(18,24,14,.97)!important;}
+.leaflet-popup-content{font-family:'Barlow',sans-serif!important;font-size:13px!important;margin:12px 14px!important;}
+.pname{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;letter-spacing:.3px;margin-bottom:2px;}
+.ptype{font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:5px;}
+.pcoord{font-size:10px;color:var(--green);margin-bottom:7px;font-weight:600;}
+.pnote{font-size:12px;color:var(--text2);font-style:italic;margin-bottom:8px;}
+.pp-shared{font-size:10px;color:var(--orange);font-weight:700;margin-bottom:7px;letter-spacing:.5px;}
+.pbtn{padding:6px 11px;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;font-weight:600;border:1px solid;}
+.pbtn+.pbtn{margin-left:5px;}
+.pbtn.del{background:rgba(200,50,30,.15);border-color:#c04030;color:#f08070;}
+.pbtn.nav{background:rgba(76,175,40,.12);border-color:var(--green);color:var(--green);}
+.pbtn.shr{background:rgba(240,120,32,.12);border-color:var(--orange);color:var(--orange);}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <div class="logo-wrap">
+    <div class="logo-mark">🦌</div>
+    <div>
+      <div class="logo-txt">TRAILMASTER</div>
+      <div class="logo-sub">Hunting &amp; Scouting</div>
+    </div>
+  </div>
+  <div id="gps-badge" onclick="locateMe()">
+    <div class="gpsdot" id="gdot"></div>
+    <span id="glabel">LOCATING</span>
+    <span id="gsource" style="font-size:9px;color:var(--muted);margin-left:2px;"></span>
+  </div>
+</div>
+
+<!-- MAP (full screen) -->
+<div id="map"></div>
+
+<!-- FLOATING CONTROLS LEFT -->
+<div id="fc-left">
+  <div class="fabs-col">
+    <button class="fab" id="place-fab" onclick="togglePlaceTray()" title="Add Marker">＋</button>
+    <div class="fab-label">ADD</div>
+  </div>
+  <div class="fabs-col" style="margin-top:4px;">
+    <button class="fab" onclick="cacheArea()" title="Cache offline">💾</button>
+    <div class="fab-label">SAVE</div>
+  </div>
+</div>
+
+<!-- FLOATING CONTROLS RIGHT -->
+<div id="fc-right">
+  <div class="fabs-col">
+    <button class="fab" id="layer-sat-btn" onclick="setLayer('sat')" title="Satellite">🛰</button>
+    <div class="fab-label">SAT</div>
+  </div>
+  <div class="fabs-col" style="margin-top:4px;">
+    <button class="fab" onclick="setLayer('topo')" id="layer-topo-btn" title="Topo">🗺</button>
+    <div class="fab-label">TOPO</div>
+  </div>
+</div>
+
+<!-- LOCATE BUTTON -->
+<button id="locate-fab" onclick="locateMe()" title="Center on me">📡</button>
+
+<!-- PLACE MARKER TRAY -->
+<div id="place-tray">
+  <div class="tray-inner">
+    <div class="tray-title">Select Marker Type — then tap map</div>
+    <div class="type-row">
+      <div class="type-card on stand" data-t="stand" onclick="selType('stand')">
+        <div class="type-icon" style="display:flex;justify-content:center;align-items:center;height:32px;">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 100" width="22" height="28">
+            <rect x="18" y="6" width="44" height="36" rx="1" fill="#6dd640"/>
+            <rect x="22" y="13" width="13" height="9" rx="1" fill="rgba(0,0,0,0.5)"/>
+            <rect x="45" y="13" width="13" height="9" rx="1" fill="rgba(0,0,0,0.5)"/>
+            <rect x="15" y="41" width="50" height="5" rx="1" fill="#6dd640"/>
+            <line x1="22" y1="46" x2="10" y2="94" stroke="#6dd640" stroke-width="5" stroke-linecap="round"/>
+            <line x1="58" y1="46" x2="70" y2="94" stroke="#6dd640" stroke-width="5" stroke-linecap="round"/>
+            <line x1="40" y1="46" x2="40" y2="94" stroke="#6dd640" stroke-width="4" stroke-linecap="round"/>
+            <line x1="14" y1="70" x2="66" y2="70" stroke="#6dd640" stroke-width="3.5" stroke-linecap="round"/>
+            <line x1="56" y1="46" x2="68" y2="90" stroke="#6dd640" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="62" y1="46" x2="74" y2="90" stroke="#6dd640" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="58" y1="53" x2="64" y2="53" stroke="#6dd640" stroke-width="2" stroke-linecap="round"/>
+            <line x1="60" y1="61" x2="66" y2="61" stroke="#6dd640" stroke-width="2" stroke-linecap="round"/>
+            <line x1="62" y1="69" x2="68" y2="69" stroke="#6dd640" stroke-width="2" stroke-linecap="round"/>
+            <line x1="64" y1="77" x2="70" y2="77" stroke="#6dd640" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="type-name" style="color:#6dd640;">Stand</div>
+      </div>
+      <div class="type-card feeder" data-t="feeder" onclick="selType('feeder')">
+        <div class="type-icon" style="display:flex;justify-content:center;align-items:center;height:32px;">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 110" width="18" height="26">
+            <ellipse cx="40" cy="10" rx="22" ry="5" fill="#ff9040" opacity="0.85"/>
+            <rect x="18" y="10" width="44" height="46" fill="#ff9040"/>
+            <ellipse cx="40" cy="56" rx="22" ry="5" fill="#ff9040"/>
+            <rect x="18" y="10" width="10" height="46" fill="rgba(0,0,0,0.15)"/>
+            <polygon points="18,56 62,56 48,72 32,72" fill="#ff9040" opacity="0.9"/>
+            <rect x="34" y="68" width="12" height="10" rx="2" fill="rgba(0,0,0,0.5)" stroke="#ff9040" stroke-width="1.2"/>
+            <line x1="32" y1="72" x2="10" y2="108" stroke="#ff9040" stroke-width="4" stroke-linecap="round"/>
+            <line x1="48" y1="72" x2="70" y2="108" stroke="#ff9040" stroke-width="4" stroke-linecap="round"/>
+            <line x1="40" y1="72" x2="40" y2="108" stroke="#ff9040" stroke-width="3.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="type-name" style="color:#ff9040;">Feeder</div>
+      </div>
+      <div class="type-card crossing" data-t="crossing" onclick="selType('crossing')">
+        <div class="type-icon" style="display:flex;justify-content:center;align-items:center;height:32px;">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 80" width="20" height="28">
+            <path d="M18,4 C9,4 4,14 4,30 C4,46 10,58 18,60 C23,60 25,55 25,44 L25,12 C25,7 22,4 18,4 Z" fill="#60d0ff"/>
+            <path d="M42,4 C51,4 56,14 56,30 C56,46 50,58 42,60 C37,60 35,55 35,44 L35,12 C35,7 38,4 42,4 Z" fill="#60d0ff"/>
+          </svg>
+        </div>
+        <div class="type-name" style="color:#38b8e8;">Crossing</div>
+      </div>
+      <div class="type-card road" data-t="road" onclick="selType('road')">
+        <div class="type-icon" style="display:flex;justify-content:center;align-items:center;height:32px;">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 110 52" width="46" height="22">
+            <path d="M6,40 L6,34 L4,34 L4,28 L6,28 L6,24 L10,24 L10,22 L18,22 L22,18 L30,14 L38,11 L46,10 L52,10 L56,11 L60,14 L62,16 L64,14 L66,12 L70,10 L76,9 L82,9 L88,10 L92,12 L94,14 L96,16 L98,18 L100,20 L104,22 L106,24 L106,28 L108,28 L108,34 L106,34 L106,40 Z" fill="#d49060"/>
+            <path d="M47,12 L52,11 L58,11 L61,15 L62,18 L47,18 Z" fill="white" opacity="0.92"/>
+            <circle cx="26" cy="40" r="11" fill="#d49060"/>
+            <circle cx="26" cy="40" r="10" fill="#111"/>
+            <circle cx="26" cy="40" r="5"  fill="white" opacity="0.15"/>
+            <circle cx="26" cy="40" r="2.5" fill="#d49060"/>
+            <circle cx="86" cy="40" r="11" fill="#d49060"/>
+            <circle cx="86" cy="40" r="10" fill="#111"/>
+            <circle cx="86" cy="40" r="5"  fill="white" opacity="0.15"/>
+            <circle cx="86" cy="40" r="2.5" fill="#d49060"/>
+          </svg>
+        </div>
+        <div class="type-name" style="color:#d49060;">Trail</div>
+      </div>
+    </div>
+    <div class="tray-hint">Tap any location on the map to place</div>
+  </div>
+</div>
+
+<!-- BOTTOM NAV -->
+<div id="bottom-nav">
+  <button class="nav-item on" data-panel="map" onclick="switchPanel('map')">
+    <span class="ni">🗺</span><span class="nl">Map</span>
+  </button>
+  <div class="nav-divider"></div>
+  <button class="nav-item" data-panel="log" onclick="switchPanel('log')">
+    <span class="ni">🦌</span><span class="nl">Sightings</span>
+  </button>
+  <div class="nav-divider"></div>
+  <button class="nav-item" data-panel="lunar" onclick="switchPanel('lunar')">
+    <span class="ni">🌙</span><span class="nl">Lunar</span>
+  </button>
+  <div class="nav-divider"></div>
+  <button class="nav-item" data-panel="share" onclick="switchPanel('share')">
+    <span class="ni">👥</span><span class="nl">Share</span>
+  </button>
+</div>
+
+<!-- SIGHTINGS PANEL -->
+<div class="side-panel" id="log-panel">
+  <div class="panel-hdr">
+    <div class="panel-title">🦌 Game Sightings</div>
+    <button class="add-btn" onclick="toggleObs()">+ Log Sighting</button>
+  </div>
+  <div class="panel-body">
+    <div id="obs-form">
+      <div class="form-grid">
+        <div class="form-field"><div class="fl">Game</div>
+          <select class="fi" id="og"><option>Whitetail Deer</option><option>Turkey</option><option>Hog</option><option>Bear</option><option>Duck</option><option>Other</option></select></div>
+        <div class="form-field"><div class="fl">Count</div><input class="fi" id="oc" type="number" value="1" min="1"></div>
+        <div class="form-field"><div class="fl">Date</div><input class="fi" id="od" type="date"></div>
+        <div class="form-field"><div class="fl">Time</div><input class="fi" id="ot" type="time"></div>
+        <div class="form-field"><div class="fl">Location / Stand</div><input class="fi" id="ol" placeholder="e.g. NW Stand, Creek Bottom"></div>
+        <div class="form-field"><div class="fl">Wind</div>
+          <select class="fi" id="ow"><option>N</option><option>NE</option><option>E</option><option>SE</option><option>S</option><option>SW</option><option>W</option><option>NW</option></select></div>
+        <div class="form-field full"><div class="fl">Notes</div><textarea class="fi" id="onotes" style="height:54px;resize:vertical" placeholder="Behavior, antler size, direction of travel…"></textarea></div>
+        <div class="form-field full" id="gps-row" style="display:none;"><div style="font-size:11px;color:var(--green);font-weight:600;">📍 GPS coordinates will be attached to this sighting</div></div>
+      </div>
+      <div class="btn-row" style="margin-bottom:14px;">
+        <button class="btn-p" onclick="saveObs()">Save Sighting</button>
+        <button class="btn-s" onclick="toggleObs()">Cancel</button>
+      </div>
+    </div>
+    <div id="obs-list"></div>
+  </div>
+</div>
+
+<!-- LUNAR PANEL -->
+<div class="side-panel" id="lunar-panel">
+  <div class="panel-hdr"><div class="panel-title">🌙 Lunar Forecast</div></div>
+  <div class="panel-body">
+    <div class="moon-hero">
+      <div class="moon-big" id="moon-icon">🌕</div>
+      <div class="moon-phase" id="moon-phase">Loading…</div>
+      <div class="moon-meta" id="moon-meta"></div>
+      <div class="activity-bar" id="activity-bar">
+        <div class="activity-label">Activity</div>
+        <div class="activity-track"><div class="activity-fill" id="act-fill" style="width:0%"></div></div>
+        <div class="activity-score" id="act-score"></div>
+      </div>
+    </div>
+
+    <div class="sec-label">7-Day Forecast</div>
+    <div class="forecast-row" id="forecast-row"></div>
+
+    <div class="sec-label" id="best-hours-label">Best Hours Today</div>
+    <div class="hour-grid" id="hour-grid"></div>
+
+    <div class="sec-label">AI Hunting Advisor</div>
+    <div class="ai-card">
+      <div class="ai-hdr">🤖 <span>Powered by Claude</span></div>
+      <div class="ai-body" id="ai-body"><div class="ai-dots"><div class="ald"></div><div class="ald"></div><div class="ald"></div><span style="margin-left:8px;font-size:12px;color:var(--muted)">Analyzing lunar conditions…</span></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- SHARE PANEL -->
+<div class="side-panel" id="share-panel">
+  <div class="panel-hdr"><div class="panel-title">👥 Share Hunt Areas</div></div>
+  <div class="panel-body">
+    <div class="sec-label">Share Your Markers</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.5;">Tap <strong style="color:var(--orange)">Share</strong> on any map marker, then generate a code to send your friends.</p>
+    <button class="btn-p" style="width:100%;margin-bottom:10px;" onclick="generateCode()">Generate Share Code</button>
+    <div id="gen-wrap" style="display:none;">
+      <div class="share-code-box" id="gen-code"></div>
+      <div class="share-hint">Give this code to your hunting crew</div>
+      <button class="btn-s" style="width:100%;margin-top:8px;" onclick="copyCode()">📋 Copy Code</button>
+    </div>
+
+    <hr class="divider">
+
+    <div class="sec-label">Join a Friend's Hunt Area</div>
+    <div class="form-field" style="margin-bottom:10px;">
+      <div class="fl">Enter Code</div>
+      <input class="fi" id="join-input" placeholder="e.g. BUCK-7291" style="text-transform:uppercase;letter-spacing:3px;font-size:16px;font-weight:700;">
+    </div>
+    <button class="btn-p" style="width:100%;margin-bottom:8px;" onclick="joinCode()">Load Friend's Markers</button>
+    <div id="join-result" style="font-size:12px;color:var(--muted);text-align:center;"></div>
+
+    <hr class="divider">
+    <div class="sec-label">Shared Markers on Map</div>
+    <div id="shared-list"></div>
+  </div>
+</div>
+
+<!-- NAME MODAL (bottom sheet) -->
+<div class="modal-bg" id="name-modal">
+  <div class="modal">
+    <div class="modal-pill"></div>
+    <div class="modal-title" id="name-modal-title">Name this Marker</div>
+    <div class="form-field" style="margin-bottom:10px;"><div class="fl">Name</div><input class="fi" id="mname" onkeydown="if(event.key==='Enter')confirmMarker()"></div>
+    <div class="form-field" style="margin-bottom:14px;"><div class="fl">Notes (optional)</div><input class="fi" id="mnotes" placeholder="e.g. Big buck trail, scrape line near oak…"></div>
+    <div class="btn-row">
+      <button class="btn-p" onclick="confirmMarker()">Place Marker</button>
+      <button class="btn-s" onclick="cancelMarker()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// ═══════════ CONSTANTS ═══════════
+const TYPES={
+  stand:   {label:'Tree Stand',      icon:'🌲',color:'#4caf28',tc:'#6dd640'},
+  feeder:  {label:'Deer Feeder',     icon:'🌽',color:'#f07820',tc:'#ff9040'},
+  crossing:{label:'Animal Crossing', icon:'🦶',color:'#38b8e8',tc:'#60d0ff'},
+  road:    {label:'Trail Access',    icon:'🛻',color:'#b07040',tc:'#d49060'},
+};
+const GAME_ICONS={'Whitetail Deer':'🦌','Turkey':'🦃','Hog':'🐗','Bear':'🐻','Duck':'🦆','Other':'🐾'};
+
+// ═══════════ STATE ═══════════
+let markers     = JSON.parse(localStorage.getItem('tm5_markers')||'[]');
+let sharedMs    = JSON.parse(localStorage.getItem('tm5_shared')||'[]');
+let observations= JSON.parse(localStorage.getItem('tm5_obs')||JSON.stringify([
+  {id:1,game:'Whitetail Deer',count:3,date:'2025-10-14',time:'06:45',location:'NW Stand',notes:'Two does and a small buck heading to creek',wind:'N',lat:null,lng:null},
+  {id:2,game:'Turkey',count:7,date:'2025-10-12',time:'08:20',location:'Food Plot',notes:'Tom and hens near feeder',wind:'SW',lat:null,lng:null},
+  {id:3,game:'Whitetail Deer',count:1,date:'2025-10-10',time:'17:30',location:'East Trail',notes:'Big 8-point cruising the ridge',wind:'W',lat:null,lng:null},
+]));
+function save(){
+  localStorage.setItem('tm5_markers',JSON.stringify(markers));
+  localStorage.setItem('tm5_shared', JSON.stringify(sharedMs));
+  localStorage.setItem('tm5_obs',    JSON.stringify(observations));
+}
+
+// ═══════════ MAP ═══════════
+const map=L.map('map',{zoomControl:false,attributionControl:false}).setView([35.5,-95.5],14);
+
+// Satellite layer (default)
+const satLayer=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,crossOrigin:true});
+// Hybrid labels on top of satellite
+const labelsLayer=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,crossOrigin:true,opacity:.8});
+// Topo layer
+const topoLayer=L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,crossOrigin:true});
+
+satLayer.addTo(map);
+labelsLayer.addTo(map);
+
+// Zoom control top-right
+L.control.zoom({position:'topright'}).addTo(map);
+
+let curLayer='sat';
+function setLayer(t){
+  if(t===curLayer)return;
+  if(t==='sat'){
+    if(map.hasLayer(topoLayer))map.removeLayer(topoLayer);
+    satLayer.addTo(map);labelsLayer.addTo(map);
+    document.getElementById('layer-sat-btn').classList.add('on');
+    document.getElementById('layer-topo-btn').classList.remove('on');
+  } else {
+    if(map.hasLayer(satLayer))map.removeLayer(satLayer);
+    if(map.hasLayer(labelsLayer))map.removeLayer(labelsLayer);
+    topoLayer.addTo(map);
+    document.getElementById('layer-topo-btn').classList.add('on');
+    document.getElementById('layer-sat-btn').classList.remove('on');
+  }
+  curLayer=t;
+}
+document.getElementById('layer-sat-btn').classList.add('on');
+
+// ═══════════ HYBRID LOCATION (GPS + Cell/WiFi) ═══════════
+// How it works:
+//   • navigator.geolocation uses ALL available sources automatically:
+//       - GPS satellite (high accuracy, ~3-10m, works offline, slower fix)
+//       - Cell tower triangulation (medium accuracy, ~50-300m, needs signal)
+//       - WiFi positioning (medium accuracy, ~20-100m, needs WiFi)
+//   • We run TWO parallel watches:
+//       1. HIGH ACCURACY watch  → prefers GPS satellite, slower to acquire
+//       2. LOW ACCURACY watch   → uses cell/WiFi immediately, fast fix
+//   • Whichever gives a position first is shown right away
+//   • When GPS locks in with better accuracy, it takes over seamlessly
+//   • If GPS is lost (deep woods, heavy canopy), cell/WiFi keeps you located
+//   • The badge shows which source is active and its accuracy radius
+
+let watchHigh=null, watchLow=null;
+let userPos=null, followUser=false, uDot=null, uRing=null;
+let lastHighAt=0, lastLowAt=0;
+
+// Dot colors per source:
+//   Green  = GPS satellite (best)
+//   Orange = Cell/WiFi (fallback)
+//   Yellow = searching
+const SRC_COLORS={gps:'#4caf28',cell:'#f07820',search:'#ffe060'};
+
+function setPosBadge(source, acc){
+  const d=document.getElementById('gdot');
+  const l=document.getElementById('glabel');
+  const s=document.getElementById('gsource');
+  if(source==='gps'){
+    d.className='gpsdot fix';
+    d.style.background=SRC_COLORS.gps;
+    d.style.boxShadow='0 0 7px '+SRC_COLORS.gps;
+    l.textContent='±'+Math.round(acc)+'m';
+    s.textContent='GPS';
+    s.style.color=SRC_COLORS.gps;
+  } else if(source==='cell'){
+    d.className='gpsdot fix';
+    d.style.background=SRC_COLORS.cell;
+    d.style.boxShadow='0 0 7px '+SRC_COLORS.cell;
+    l.textContent='±'+Math.round(acc)+'m';
+    s.textContent='CELL';
+    s.style.color=SRC_COLORS.cell;
+  } else {
+    d.className='gpsdot seek';
+    d.style.background=SRC_COLORS.search;
+    d.style.boxShadow='none';
+    l.textContent='SEARCHING';
+    s.textContent='';
+  }
+}
+
+function updatePosition(lat, lng, acc, sourceHint){
+  // Determine actual source by accuracy:
+  // GPS typically <50m, cell/WiFi typically >50m
+  // But we also track which watch fired to help classify
+  const source = (acc <= 50) ? 'gps' : 'cell';
+  userPos={lat,lng,acc,source};
+
+  setPosBadge(source, acc);
+
+  // Color ring by source
+  const ringColor = source==='gps' ? '#4caf28' : '#f07820';
+
+  if(uRing){
+    uRing.setLatLng([lat,lng]);
+    uRing.setRadius(acc);
+    uRing.setStyle({color:ringColor,fillColor:ringColor});
+    uDot.setLatLng([lat,lng]);
+    // Update dot color on map
+    const dotBg = source==='gps' ? '#4caf28' : '#f07820';
+    const dotGlow = source==='gps' ? 'rgba(76,175,40,.9)' : 'rgba(240,120,32,.9)';
+    uDot.setIcon(L.divIcon({
+      html:`<div style="width:14px;height:14px;border-radius:50%;background:${dotBg};border:3px solid #fff;box-shadow:0 0 10px ${dotGlow}"></div>`,
+      className:'',iconSize:[14,14],iconAnchor:[7,7]
+    }));
+  } else {
+    uRing=L.circle([lat,lng],{radius:acc,color:ringColor,fillColor:ringColor,fillOpacity:.07,weight:1.5}).addTo(map);
+    const dotBg = source==='gps' ? '#4caf28' : '#f07820';
+    const dotGlow = source==='gps' ? 'rgba(76,175,40,.9)' : 'rgba(240,120,32,.9)';
+    uDot=L.marker([lat,lng],{icon:L.divIcon({
+      html:`<div style="width:14px;height:14px;border-radius:50%;background:${dotBg};border:3px solid #fff;box-shadow:0 0 10px ${dotGlow}"></div>`,
+      className:'',iconSize:[14,14],iconAnchor:[7,7]
+    }),zIndexOffset:1000}).addTo(map);
+    map.setView([lat,lng],16);
+    followUser=true;
+  }
+  if(followUser) map.panTo([lat,lng]);
+}
+
+function startLocation(){
+  if(!navigator.geolocation){ toast('⚠ Geolocation not supported'); return; }
+  setPosBadge('search', 0);
+
+  // ── Watch 1: HIGH ACCURACY (GPS satellite preferred) ──
+  // enableHighAccuracy:true tells the device to use GPS chip
+  // timeout:30s — GPS can take a while to cold-start in the woods
+  watchHigh = navigator.geolocation.watchPosition(
+    pos=>{
+      lastHighAt=Date.now();
+      updatePosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, 'high');
+    },
+    err=>{
+      // High accuracy failed — could be no GPS signal, denied, or timeout
+      // Low accuracy watch will cover us
+      if(err.code===1){
+        // Permission denied — stop both
+        setPosBadge('search',0);
+        document.getElementById('glabel').textContent='DENIED';
+        document.getElementById('gsource').textContent='';
+        toast('⚠ Location permission denied');
+        if(watchLow) navigator.geolocation.clearWatch(watchLow);
+      }
+      // code 2/3 = position unavailable / timeout → low watch handles it
+    },
+    {enableHighAccuracy:true, maximumAge:3000, timeout:30000}
+  );
+
+  // ── Watch 2: LOW ACCURACY (cell towers / WiFi) ──
+  // enableHighAccuracy:false → browser uses network/WiFi immediately
+  // Gets a position in seconds, even with zero GPS signal
+  // maximumAge:10000 → accepts cached cell position up to 10s old (fast + battery friendly)
+  watchLow = navigator.geolocation.watchPosition(
+    pos=>{
+      lastLowAt=Date.now();
+      // Only use low-accuracy if:
+      //   a) We have no position yet, OR
+      //   b) High-accuracy hasn't updated in 15s (GPS lost signal)
+      const gpsStale = (Date.now()-lastHighAt) > 15000;
+      if(!userPos || gpsStale){
+        updatePosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, 'low');
+      }
+    },
+    err=>{ /* silent — high watch handles errors */ },
+    {enableHighAccuracy:false, maximumAge:10000, timeout:8000}
+  );
+}
+
+map.on('dragstart',()=>followUser=false);
+
+function locateMe(){
+  if(!watchHigh && !watchLow){ startLocation(); return; }
+  if(userPos){
+    map.setView([userPos.lat, userPos.lng], userPos.source==='gps' ? 17 : 15);
+    followUser=true;
+    toast('📡 Centered · '+document.getElementById('gsource').textContent+' ±'+Math.round(userPos.acc)+'m');
+  } else {
+    toast('Acquiring signal… tap again in a moment');
+  }
+}
+
+// ═══════════ PLACE MODE ═══════════
+let placeMode=false,selT='stand',pendingLL=null;
+let lm={},lmS={};
+
+function togglePlaceTray(){
+  placeMode=!placeMode;
+  document.getElementById('place-tray').classList.toggle('on',placeMode);
+  document.getElementById('place-fab').classList.toggle('on',placeMode);
+  document.getElementById('place-fab').textContent=placeMode?'✕':'＋';
+  map.getContainer().style.cursor=placeMode?'crosshair':'';
+}
+
+function selType(t){
+  selT=t;
+  document.querySelectorAll('.type-card').forEach(c=>c.classList.toggle('on',c.dataset.t===t));
+}
+
+map.on('click',e=>{
+  if(!placeMode)return;
+  pendingLL=e.latlng;
+  const T=TYPES[selT];
+  document.getElementById('mname').value='';
+  document.getElementById('mnotes').value='';
+  document.getElementById('mname').placeholder=T.label;
+  document.getElementById('name-modal-title').textContent=T.icon+' Place '+T.label;
+  document.getElementById('name-modal').classList.add('on');
+  setTimeout(()=>document.getElementById('mname').focus(),100);
+});
+
+function confirmMarker(){
+  if(!pendingLL)return;
+  const T=TYPES[selT];
+  const name=document.getElementById('mname').value.trim()||T.label;
+  const notes=document.getElementById('mnotes').value.trim();
+  const m={id:Date.now(),type:selT,lat:pendingLL.lat,lng:pendingLL.lng,name,notes,shared:false};
+  markers.push(m);save();
+  addLM(m,false);
+  document.getElementById('name-modal').classList.remove('on');
+  togglePlaceTray();
+  toast('✅ '+T.icon+' "'+name+'" placed');
+  renderSharedList();
+}
+function cancelMarker(){document.getElementById('name-modal').classList.remove('on');pendingLL=null;}
+
+// ── SVG: Elevated box blind (green, rectangular cabin + ladder)
+const STAND_SVG=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 100" width="40" height="50">
+  <rect x="18" y="6" width="44" height="36" rx="1" fill="COLOR" stroke="rgba(255,255,255,0.25)" stroke-width="1"/>
+  <rect x="22" y="13" width="13" height="9" rx="1" fill="rgba(0,0,0,0.55)"/>
+  <rect x="45" y="13" width="13" height="9" rx="1" fill="rgba(0,0,0,0.55)"/>
+  <rect x="15" y="41" width="50" height="5" rx="1" fill="COLOR"/>
+  <line x1="22" y1="46" x2="10" y2="94" stroke="COLOR" stroke-width="5" stroke-linecap="round"/>
+  <line x1="58" y1="46" x2="70" y2="94" stroke="COLOR" stroke-width="5" stroke-linecap="round"/>
+  <line x1="40" y1="46" x2="40" y2="94" stroke="COLOR" stroke-width="4" stroke-linecap="round"/>
+  <line x1="14" y1="70" x2="66" y2="70" stroke="COLOR" stroke-width="3.5" stroke-linecap="round"/>
+  <line x1="56" y1="46" x2="68" y2="90" stroke="COLOR" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="62" y1="46" x2="74" y2="90" stroke="COLOR" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="58" y1="53" x2="64" y2="53" stroke="COLOR" stroke-width="2" stroke-linecap="round"/>
+  <line x1="60" y1="61" x2="66" y2="61" stroke="COLOR" stroke-width="2" stroke-linecap="round"/>
+  <line x1="62" y1="69" x2="68" y2="69" stroke="COLOR" stroke-width="2" stroke-linecap="round"/>
+  <line x1="64" y1="77" x2="70" y2="77" stroke="COLOR" stroke-width="2" stroke-linecap="round"/>
+  <line x1="66" y1="85" x2="72" y2="85" stroke="COLOR" stroke-width="2" stroke-linecap="round"/>
+</svg>`;
+
+// ── SVG: Barrel feeder on tripod (orange, round drum + flared legs + timer box)
+// Distinct from stand: circular barrel vs rectangular box, 3 outward-splayed legs, no ladder
+const FEEDER_SVG=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 110" width="36" height="50">
+  <!-- barrel lid (ellipse top) -->
+  <ellipse cx="40" cy="10" rx="22" ry="5" fill="COLOR" opacity="0.85"/>
+  <!-- barrel body (tall cylinder) -->
+  <rect x="18" y="10" width="44" height="46" fill="COLOR"/>
+  <!-- barrel bottom rim -->
+  <ellipse cx="40" cy="56" rx="22" ry="5" fill="COLOR"/>
+  <!-- slight shade on barrel face for depth -->
+  <rect x="18" y="10" width="10" height="46" fill="rgba(0,0,0,0.15)"/>
+  <!-- funnel / cone below barrel -->
+  <polygon points="18,56 62,56 48,72 32,72" fill="COLOR" opacity="0.9"/>
+  <!-- motor/timer box (small rectangle on front, lower) -->
+  <rect x="34" y="68" width="12" height="10" rx="2" fill="rgba(0,0,0,0.5)" stroke="COLOR" stroke-width="1.2"/>
+  <rect x="36" y="70" width="4" height="3" rx="1" fill="rgba(255,255,255,0.3)"/>
+  <!-- tripod legs: left, right, center-back — splayed wide like real feeder -->
+  <line x1="32" y1="72" x2="10" y2="108" stroke="COLOR" stroke-width="4" stroke-linecap="round"/>
+  <line x1="48" y1="72" x2="70" y2="108" stroke="COLOR" stroke-width="4" stroke-linecap="round"/>
+  <line x1="40" y1="72" x2="40" y2="108" stroke="COLOR" stroke-width="3.5" stroke-linecap="round"/>
+</svg>`;
+
+// ── SVG: Single large deer hoofprint — two clean curved teardrops
+const CROSSING_SVG=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 80" width="38" height="50">
+  <path d="M18,4 C9,4 4,14 4,30 C4,46 10,58 18,60 C23,60 25,55 25,44 L25,12 C25,7 22,4 18,4 Z" fill="COLOR"/>
+  <path d="M42,4 C51,4 56,14 56,30 C56,46 50,58 42,60 C37,60 35,55 35,44 L35,12 C35,7 38,4 42,4 Z" fill="COLOR"/>
+</svg>`;
+
+// ── SVG: Classic vintage pickup silhouette — rounded cab, long hood, flat bed, ring hubcaps
+const TRAIL_SVG=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 110 52" width="60" height="29">
+  <!-- full truck body as one solid shape -->
+  <path d="
+    M6,40
+    L6,34 L4,34 L4,28 L6,28
+    L6,24
+    L10,24 L10,22
+    L18,22 L22,18
+    L30,14 L38,11
+    L46,10 L52,10
+    L56,11 L60,14 L62,16
+    L64,14 L66,12 L70,10
+    L76,9 L82,9
+    L88,10 L92,12 L94,14
+    L96,16 L98,18 L100,20
+    L104,22 L106,24 L106,28
+    L108,28 L108,34 L106,34
+    L106,40
+    Z
+  " fill="COLOR"/>
+  <!-- window cutout -->
+  <path d="M47,12 L52,11 L58,11 L61,15 L62,18 L47,18 Z" fill="white" opacity="0.92"/>
+  <!-- front fender curve line -->
+  <path d="M22,28 Q18,32 18,36" stroke="white" stroke-width="1.5" fill="none" opacity="0.4"/>
+  <!-- rear fender curve -->
+  <path d="M88,28 Q92,32 92,36" stroke="white" stroke-width="1.5" fill="none" opacity="0.4"/>
+  <!-- front tire -->
+  <circle cx="26" cy="40" r="11" fill="COLOR"/>
+  <circle cx="26" cy="40" r="10" fill="#111"/>
+  <circle cx="26" cy="40" r="5"  fill="white" opacity="0.15"/>
+  <circle cx="26" cy="40" r="2.5" fill="COLOR"/>
+  <!-- rear tire -->
+  <circle cx="86" cy="40" r="11" fill="COLOR"/>
+  <circle cx="86" cy="40" r="10" fill="#111"/>
+  <circle cx="86" cy="40" r="5"  fill="white" opacity="0.15"/>
+  <circle cx="86" cy="40" r="2.5" fill="COLOR"/>
+</svg>`;
+
+function makeIcon(type,isShared){
+  const T=TYPES[type];
+  const op=isShared?'0.7':'1';
+
+  if(type==='stand'){
+    const svg=STAND_SVG.replace(/COLOR/g,'#6dd640');
+    return L.divIcon({
+      html:`<div style="opacity:${op};filter:drop-shadow(0 2px 6px rgba(0,0,0,.8)) drop-shadow(0 0 8px rgba(109,214,64,.4))">${svg}</div>`,
+      className:'',iconSize:[40,50],iconAnchor:[20,50],popupAnchor:[0,-52]
+    });
+  }
+
+  if(type==='feeder'){
+    const svg=FEEDER_SVG.replace(/COLOR/g,'#ff9040');
+    return L.divIcon({
+      html:`<div style="opacity:${op};filter:drop-shadow(0 2px 6px rgba(0,0,0,.8)) drop-shadow(0 0 8px rgba(255,144,64,.4))">${svg}</div>`,
+      className:'',iconSize:[36,50],iconAnchor:[18,50],popupAnchor:[0,-52]
+    });
+  }
+
+  if(type==='crossing'){
+    const svg=CROSSING_SVG.replace(/COLOR/g,'#60d0ff');
+    return L.divIcon({
+      html:`<div style="opacity:${op};filter:drop-shadow(0 2px 5px rgba(0,0,0,.9)) drop-shadow(0 0 7px rgba(96,208,255,.5))">${svg}</div>`,
+      className:'',iconSize:[38,44],iconAnchor:[19,44],popupAnchor:[0,-46]
+    });
+  }
+
+  if(type==='road'){
+    const svg=TRAIL_SVG.replace(/COLOR/g,'#d49060');
+    return L.divIcon({
+      html:`<div style="opacity:${op};filter:drop-shadow(0 2px 5px rgba(0,0,0,.9)) drop-shadow(0 0 6px rgba(212,144,96,.5))">${svg}</div>`,
+      className:'',iconSize:[60,29],iconAnchor:[30,29],popupAnchor:[0,-32]
+    });
+  }
+
+  const s=isShared?'opacity:.7;':'';
+  return L.divIcon({
+    html:`<div style="width:38px;height:38px;border-radius:50%;background:${T.color};display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 3px 12px rgba(0,0,0,.6),0 0 0 2px rgba(255,255,255,.2);${s}">
+      ${T.icon}
+    </div>`,
+    className:'',iconSize:[38,38],iconAnchor:[19,38],popupAnchor:[0,-40]
+  });
+}
+
+function addLM(m,isShared){
+  const T=TYPES[m.type];
+  const mk=L.marker([m.lat,m.lng],{icon:makeIcon(m.type,isShared)}).addTo(map);
+  const del=!isShared?`<button class="pbtn del" onclick="delMarker(${m.id})">Remove</button>`:'';
+  const shr=!isShared?`<button class="pbtn shr" onclick="flagShare(${m.id})">${m.shared?'✓ Shared':'Share'}</button>`:'';
+  const sharedBadge=isShared?'<div class="pp-shared">👥 SHARED BY FRIEND</div>':'';
+  mk.bindPopup(`
+    <div class="pname" style="color:${T.tc}">${T.icon} ${m.name}</div>
+    <div class="ptype">${T.label}</div>
+    ${sharedBadge}
+    <div class="pcoord">📍 ${m.lat.toFixed(5)}, ${m.lng.toFixed(5)}</div>
+    ${m.notes?`<div class="pnote">${m.notes}</div>`:''}
+    <div style="margin-top:6px">${del}<button class="pbtn nav" onclick="navTo(${m.lat},${m.lng})">Navigate</button>${shr}</div>
+  `);
+  if(isShared)lmS[m.id]=mk;else lm[m.id]=mk;
+}
+
+function delMarker(id){
+  if(lm[id]){map.removeLayer(lm[id]);delete lm[id];}
+  markers=markers.filter(m=>m.id!==id);save();
+  toast('Marker removed');map.closePopup();renderSharedList();
+}
+function flagShare(id){
+  const m=markers.find(x=>x.id===id);
+  if(m){m.shared=!m.shared;save();}
+  toast(m?.shared?'🤝 Marker set to share':'Removed from share');
+  map.closePopup();
+}
+function navTo(lat,lng){window.open(`https://maps.google.com/maps?daddr=${lat},${lng}`,'_blank');}
+
+markers.forEach(m=>addLM(m,false));
+sharedMs.forEach(m=>addLM(m,true));
+if(markers.length>0)try{map.fitBounds(L.latLngBounds(markers.map(m=>[m.lat,m.lng])).pad(.25));}catch(e){}
+
+// ═══════════ CACHE ═══════════
+function ll2t(lat,lng,z){return{x:Math.floor((lng+180)/360*Math.pow(2,z)),y:Math.floor((1-Math.log(Math.tan(lat*Math.PI/180)+1/Math.cos(lat*Math.PI/180))/Math.PI)/2*Math.pow(2,z))};}
+function cacheArea(){
+  const b=map.getBounds(),z=map.getZoom();let c=0;
+  for(let zz=Math.max(z-1,10);zz<=Math.min(z+2,17);zz++){
+    const nw=ll2t(b.getNorth(),b.getWest(),zz),se=ll2t(b.getSouth(),b.getEast(),zz);
+    for(let x=nw.x;x<=se.x;x++)for(let y=nw.y;y<=se.y;y++){const i=new Image();i.crossOrigin='anonymous';i.src=`https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zz}/${y}/${x}`;c++;}
+  }
+  toast(`💾 ~${c} satellite tiles cached for offline`);
+}
+
+// ═══════════ SHARE ═══════════
+function generateCode(){
+  const toShare=markers.filter(m=>m.shared);
+  if(!toShare.length){toast('⚠ Tap "Share" on a marker popup first');return;}
+  const code='BUCK-'+Math.floor(1000+Math.random()*9000);
+  localStorage.setItem('share_'+code,JSON.stringify(toShare));
+  document.getElementById('gen-code').textContent=code;
+  document.getElementById('gen-wrap').style.display='block';
+  toast('🤝 Code generated!');
+}
+function copyCode(){
+  const code=document.getElementById('gen-code').textContent;
+  navigator.clipboard?.writeText(code).then(()=>toast('📋 Copied to clipboard!')).catch(()=>toast('Code: '+code));
+}
+function joinCode(){
+  const raw=document.getElementById('join-input').value.trim().toUpperCase();
+  const data=localStorage.getItem('share_'+raw);
+  const res=document.getElementById('join-result');
+  if(!data){res.textContent='⚠ Code not found. (Must be generated on same device — demo mode)';return;}
+  Object.values(lmS).forEach(mk=>map.removeLayer(mk));lmS={};
+  sharedMs=JSON.parse(data).map(m=>({...m,id:m.id+Date.now(),shared:true}));
+  save();sharedMs.forEach(m=>addLM(m,true));
+  res.textContent='✅ Loaded '+sharedMs.length+' shared marker(s) from friend!';
+  toast('✅ '+sharedMs.length+' friend markers loaded!');
+  renderSharedList();
+  if(sharedMs.length)try{map.fitBounds(L.latLngBounds(sharedMs.map(m=>[m.lat,m.lng])).pad(.3));}catch(e){}
+}
+function renderSharedList(){
+  const el=document.getElementById('shared-list');
+  const all=[...markers.filter(m=>m.shared).map(m=>({...m,owner:'You'})),...sharedMs.map(m=>({...m,owner:'Friend'}))];
+  if(!all.length){el.innerHTML='<div style="font-size:12px;color:var(--muted);text-align:center;padding:10px 0">No shared markers yet</div>';return;}
+  el.innerHTML=all.map(m=>{
+    const T=TYPES[m.type];
+    return`<div class="card" style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+      <span style="font-size:22px">${T.icon}</span>
+      <div style="flex:1"><div style="font-weight:700;font-size:13px;color:${T.tc}">${m.name}</div>
+      <div style="font-size:10px;color:var(--muted);font-weight:600;letter-spacing:.5px">${T.label} · ${m.owner}</div></div>
+      <button onclick="flyTo(${m.lat},${m.lng})" style="background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--text2);padding:4px 8px;cursor:pointer;font-size:11px;font-family:inherit;">View</button>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════ OBSERVATIONS ═══════════
+function toggleObs(){
+  const f=document.getElementById('obs-form');
+  f.classList.toggle('on');
+  if(f.classList.contains('on')){
+    document.getElementById('od').value=new Date().toISOString().split('T')[0];
+    const n=new Date();
+    document.getElementById('ot').value=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');
+    document.getElementById('gps-row').style.display=userPos?'block':'none';
+  }
+}
+function saveObs(){
+  const loc=document.getElementById('ol').value.trim(),dt=document.getElementById('od').value;
+  if(!dt||!loc){toast('⚠ Date and location required');return;}
+  const o={id:Date.now(),game:document.getElementById('og').value,count:parseInt(document.getElementById('oc').value)||1,date:dt,time:document.getElementById('ot').value,location:loc,notes:document.getElementById('onotes').value,wind:document.getElementById('ow').value,lat:userPos?.lat||null,lng:userPos?.lng||null};
+  observations.unshift(o);save();toggleObs();renderLog();
+  toast('✅ '+(GAME_ICONS[o.game]||'🐾')+' Sighting logged!');
+}
+function renderLog(){
+  const list=document.getElementById('obs-list');list.innerHTML='';
+  if(!observations.length){list.innerHTML='<div style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">No sightings logged yet</div>';return;}
+  observations.forEach(o=>{
+    const icon=GAME_ICONS[o.game]||'🐾';
+    const d=document.createElement('div');d.className='obs-card';
+    d.innerHTML=`<div class="obs-ico">${icon}</div><div style="flex:1;min-width:0">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px">
+        <div><span class="og">${o.game}</span><span class="ocount">×${o.count}</span></div>
+        <div style="font-size:10px;color:var(--muted);font-weight:600">${o.date}${o.time?' '+o.time:''}</div>
+      </div>
+      <div class="ometa">📍 ${o.location} &nbsp;💨 ${o.wind}</div>
+      ${o.notes?`<div class="onote">${o.notes}</div>`:''}
+      ${o.lat?`<div class="ogps" onclick="flyTo(${o.lat},${o.lng})">🗺 View on map</div>`:''}
+    </div>`;
+    list.appendChild(d);
+  });
+}
+function flyTo(lat,lng){switchPanel('map');map.flyTo([lat,lng],16,{duration:1.5});}
+
+// ═══════════ LUNAR ═══════════
+function lunarAge(date){
+  const d=new Date(date),Y=d.getFullYear(),M=d.getMonth()+1,D=d.getDate();
+  const jd=367*Y-Math.floor(7*(Y+Math.floor((M+9)/12))/4)+Math.floor(275*M/9)+D+1721013.5;
+  return(((jd-2451549.5)%29.53058867)+29.53058867)%29.53058867;
+}
+function phaseInfo(age){
+  const p=age/29.53;
+  if(p<.03||p>.97)return{name:'New Moon',icon:'🌑',score:9};
+  if(p<.22)       return{name:'Waxing Crescent',icon:'🌒',score:6};
+  if(p<.28)       return{name:'First Quarter',icon:'🌓',score:7};
+  if(p<.47)       return{name:'Waxing Gibbous',icon:'🌔',score:8};
+  if(p<.53)       return{name:'Full Moon',icon:'🌕',score:10};
+  if(p<.72)       return{name:'Waning Gibbous',icon:'🌖',score:8};
+  if(p<.78)       return{name:'Last Quarter',icon:'🌗',score:7};
+                  return{name:'Waning Crescent',icon:'🌘',score:6};
+}
+function scoreColor(s){return s>=9?'#ffe060':s>=7?'#4caf28':s>=5?'#2a6a18':'#1a2a10';}
+function hourScore(h,phase){
+  let s=2;
+  if(h>=4&&h<=8)s=8-Math.abs(h-6)*1.5;
+  else if(h>=15&&h<=20)s=8-Math.abs(h-17.5)*1.2;
+  const mb=phase.score>=9?1.4:phase.score>=8?1.2:1;
+  return Math.min(10,Math.round(Math.max(1,s)*mb));
+}
+
+function renderLunar(){
+  const today=new Date(),age=lunarAge(today),phase=phaseInfo(age);
+  document.getElementById('moon-icon').textContent=phase.icon;
+  document.getElementById('moon-phase').textContent=phase.name;
+  document.getElementById('moon-meta').textContent=`Age: ${age.toFixed(1)} days  ·  ${new Date().toLocaleDateString('en',{month:'long',day:'numeric',year:'numeric'})}`;
+  const pct=phase.score*10;
+  const col=scoreColor(phase.score);
+  document.getElementById('act-fill').style.cssText=`width:${pct}%;background:${col};`;
+  document.getElementById('act-score').textContent=phase.score+'/10';
+  document.getElementById('act-score').style.color=col;
+
+  // 7-day
+  const fr=document.getElementById('forecast-row');fr.innerHTML='';
+  for(let i=0;i<7;i++){
+    const d2=new Date(today);d2.setDate(d2.getDate()+i);
+    const a2=lunarAge(d2),ph2=phaseInfo(a2);
+    const dn=d2.toLocaleDateString('en',{weekday:'short'}).toUpperCase();
+    const col2=scoreColor(ph2.score);
+    const div=document.createElement('div');div.className='fday'+(i===0?' sel':'');
+    div.innerHTML=`<div class="fdn">${dn}</div><div class="fdm">${ph2.icon}</div><div class="fds" style="color:${col2}">${ph2.score}</div><div class="fdb" style="background:${col2}"></div>`;
+    div.onclick=(()=>{const dd=d2,pp=ph2;return()=>{document.querySelectorAll('.fday').forEach(x=>x.classList.remove('sel'));div.classList.add('sel');renderHours(dd,pp);}})();
+    fr.appendChild(div);
+  }
+  renderHours(today,phase);
+  fetchAI(phase,age);
+}
+
+function renderHours(date,phase){
+  document.getElementById('best-hours-label').textContent='Best Hours — '+date.toLocaleDateString('en',{weekday:'long',month:'short',day:'numeric'});
+  const hg=document.getElementById('hour-grid');hg.innerHTML='';
+  [4,6,8,10,12,14,16,18,20,22,0,2].forEach(h=>{
+    const s=hourScore(h,phase),col=scoreColor(s),peak=s>=7;
+    const lbl=h===0?'12am':h<12?h+'am':h===12?'12pm':(h-12)+'pm';
+    const em=s>=9?'🔥':s>=7?'⚡':s>=5?'✅':'💤';
+    const div=document.createElement('div');div.className='hcell'+(peak?' peak':'');
+    div.innerHTML=`<div class="ht">${lbl}</div><div class="hico">${em}</div><div class="hbar" style="background:${col}"></div>`;
+    hg.appendChild(div);
+  });
+}
+
+async function fetchAI(phase,age){
+  const box=document.getElementById('ai-body');
+  box.innerHTML='<div class="ai-dots"><div class="ald"></div><div class="ald"></div><div class="ald"></div><span style="margin-left:8px;font-size:12px;color:var(--muted)">Analyzing conditions…</span></div>';
+  const month=new Date().toLocaleDateString('en',{month:'long'});
+  const prompt=`You are an expert whitetail deer hunting advisor. Lunar data: "${phase.name}" phase, age ${age.toFixed(1)} days, activity score ${phase.score}/10. Month: ${month}. Give 3-4 concise, practical sentences: expected deer movement and behavior today, which stand type to prioritize (tree stand near bedding, feeder area, or animal crossing/trail), and the top 2 time windows to be in the woods. Be direct and specific. No filler phrases.`;
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
+    const data=await res.json();
+    const text=data.content?.map(c=>c.text||'').join('')||'Unable to load.';
+    box.innerHTML=`<div>${text}</div>`;
+  }catch(e){
+    box.innerHTML='<div style="color:var(--muted)">Lunar data loaded. Connect to internet for AI hunting insights.</div>';
+  }
+}
+
+// ═══════════ PANELS ═══════════
+let curPanel='map';
+function switchPanel(id){
+  const panels=['log','lunar','share'];
+  panels.forEach(p=>{
+    document.getElementById(p+'-panel').classList.toggle('on',p===id&&id!=='map');
+  });
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('on',n.dataset.panel===id));
+  if(id==='map'){
+    if(document.getElementById('place-tray').classList.contains('on'))togglePlaceTray();
+    setTimeout(()=>map.invalidateSize(),80);
+  }
+  curPanel=id;
+}
+
+// ═══════════ TOAST ═══════════
+let _tt;
+function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('on');clearTimeout(_tt);_tt=setTimeout(()=>el.classList.remove('on'),2800);}
+
+// ═══════════ INIT ═══════════
+renderLog();
+renderSharedList();
+renderLunar();
+startLocation();
+
+// ═══════════ PWA — SERVICE WORKER ═══════════
+// Registers a service worker that caches the app shell and all
+// map tiles for full offline use after first load.
+if('serviceWorker' in navigator){
+  // Build the SW script as a Blob so we don't need a separate sw.js file
+  const swCode=`
+const CACHE='trailmaster-v1';
+const SHELL=[
+  '/',
+  '/index.html',
+  'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
+  'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js',
+  'https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap'
+];
+
+self.addEventListener('install',e=>{
+  e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()));
+});
+
+self.addEventListener('activate',e=>{
+  e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));
+});
+
+// Network-first for API calls, cache-first for tiles and assets
+self.addEventListener('fetch',e=>{
+  const url=e.request.url;
+  // Always network for Anthropic API
+  if(url.includes('anthropic.com'))return;
+  // Cache-first for map tiles (works offline after first view)
+  if(url.includes('arcgisonline.com')||url.includes('openstreetmap.org')||url.includes('opentopomap.org')){
+    e.respondWith(caches.open(CACHE).then(c=>c.match(e.request).then(cached=>{
+      const fresh=fetch(e.request).then(r=>{c.put(e.request,r.clone());return r;}).catch(()=>cached);
+      return cached||fresh;
+    })));
+    return;
+  }
+  // Cache-first for fonts and static assets
+  if(url.includes('fonts.googleapis')||url.includes('fonts.gstatic')||url.includes('cdnjs')){
+    e.respondWith(caches.open(CACHE).then(c=>c.match(e.request).then(r=>r||fetch(e.request).then(res=>{c.put(e.request,res.clone());return res;}))));
+    return;
+  }
+  // Network-first for everything else
+  e.respondWith(fetch(e.request).catch(()=>caches.match(e.request)));
+});
+`;
+  const blob=new Blob([swCode],{type:'application/javascript'});
+  const swURL=URL.createObjectURL(blob);
+  navigator.serviceWorker.register(swURL,{scope:'/'})
+    .then(()=>console.log('Trailmaster SW registered'))
+    .catch(e=>console.warn('SW registration failed (expected on file://):', e.message));
+}
+
+// ═══════════ PWA — MANIFEST (injected dynamically) ═══════════
+// Creates manifest.json on-the-fly so GitHub Pages only needs one file
+const manifest={
+  name:'Trailmaster',
+  short_name:'Trailmaster',
+  description:'Hunting scouting and land management',
+  start_url:'/',
+  display:'standalone',
+  background_color:'#111814',
+  theme_color:'#111814',
+  orientation:'portrait',
+  icons:[
+    {src:"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%23111814'/%3E%3Ctext x='256' y='360' font-size='320' text-anchor='middle'%3E🦌%3C/text%3E%3C/svg%3E",sizes:'512x512',type:'image/svg+xml',purpose:'any maskable'}
+  ]
+};
+const mBlob=new Blob([JSON.stringify(manifest)],{type:'application/json'});
+const mURL=URL.createObjectURL(mBlob);
+document.querySelector('link[rel="manifest"]').href=mURL;
+</script>
+</body>
+</html>
